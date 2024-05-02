@@ -1,60 +1,657 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>index</title>
-    <script type="module" crossorigin src="/script-runner/assets/main-71c30259.js"></script>
-    <link rel="stylesheet" href="/script-runner/assets/main-accf464b.css">
-  </head>
-  <body>
-    <h1 class="header">我是 header</h1>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>index</title>
+  <script type="module" crossorigin src="/script-runner/assets/main-71c30259.js"></script>
+  <link rel="stylesheet" href="/script-runner/assets/main-accf464b.css">
+</head>
+
+<body>
+  <h1 class="header">我是 header</h1>
 <a href="index.html">index</a>
 <a href="about.html">about</a>
 <a href="contact.html">contact</a>
-    <h1 class="index-title">我是首頁</h1>
+    <label for="story">Script</label>
 
-    <div class="card" style="width: 18rem">
-      <img src="/script-runner/assets/cat-0c0689ae.jpg" class="card-img-top" alt="cat" />
-      <div class="card-body">
-        <h5 class="card-title">卡片元件</h5>
-        <p class="card-text">
-          Lorem ipsum dolor sit amet consectetur adipisicing elit. Neque, odit, iusto odio assumenda alias id
-          nobis earum!
-        </p>
+    <textarea id="script_editor" name="story" rows="20" cols="33">
+</textarea>
+
+    <button class="" id="button_script_run">Run</button>
+    <button class="" id="button_script_stop">Stop</button>
+    <button class="" id="button_script_empty">Empty</button>
+    <textarea id="output" class="form-control" rows="20" cols="33" readonly></textarea>
+
+    <div class="row">
+      <div class="col-4">
+        <label>Score:</label>
+      </div>
+      <div class="col-6">
+        <input type="text" class="form_control" id="result_score">
       </div>
     </div>
 
-    <!-- Modal 按鈕 -->
-    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#exampleModal">
-      打開 modal
-    </button>
+    <div class="row">
+      <div class="col-4">
+        <label>Ball:</label>
+      </div>
+      <div class="col-6">
+        <input type="text" class="form_control" id="result_ball">
+      </div>
+    </div>
 
-    <!-- Modal 元件 -->
-    <div
-      class="modal fade"
-      id="exampleModal"
-      tabindex="-1"
-      aria-labelledby="exampleModalLabel"
-      aria-hidden="true"
-    >
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="exampleModalLabel">Modal 標題</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body">內容</div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
-            <button type="button" class="btn btn-primary">確定</button>
-          </div>
-        </div>
+    <div class="row">
+      <div class="col-4">
+        <label>Detail:</label>
+      </div>
+      <div class="col-6">
+        <input type="text" class="form_control" id="result_detail">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-4">
+        <label>Ball Waiting:</label>
+      </div>
+      <div class="col-6">
+        <input type="text" class="form_control" id="result_ball_line">
       </div>
     </div>
 
     <footer class="footer">我是 footer</footer>
-    
-  </body>
+      
+      <script>
+        //載入jquery & moment 套件
+        const BIZLUTION_RESTFUL_API_URL = "http://61.222.52.130:60081/pinball/";
+        const BIZLUTION_RESTFUL_ROOT_URL = "http://61.222.52.130:60081";
+
+        let result_data;
+        let itimer;
+        let lines;
+        let script_timer;
+        let script_execution_counter;
+        let script_line_count;
+        let script_timeout;
+        let labels;
+        let script_stop;
+        let script_files;
+        const SCRIPT_DEFAULT_TIMEOUT = 0.1;
+
+        $(document).ready(function () {
+          //getResult，必須要包在document.ready內才有辦法執行
+          function getResult() {
+            $.ajax({
+              dataType: "json",
+              url: BIZLUTION_RESTFUL_API_URL + "get_result",
+              async: true,
+              error: function (result) { },
+              success: function (result) {
+                //alert(JSON.stringify(result))
+                $("#result_score").val(result.data.score);
+                $("#result_ball").val(result.data.ball);
+                $("#result_detail").val(result.data.detail);
+                $("#result_ball_line").val(result.data.ball_line);
+
+                //script
+                result_data = result;
+              }
+            });
+          }
+
+          //使得每一步都能按照順序執行
+          let test_script =
+            "### Example" +
+            "\r" +
+            "INSERTCOIN 1" +
+            "\r" +
+            "START" +
+            "\r" +
+            "LOOP1:" +
+            "\r" +
+            "PULL 2.0" +
+            "\r" +
+            "STOP 0.5" +
+            "\r" +
+            "SHOOT" +
+            "\r" +
+            "STOP 10" +
+            "\r" +
+            "IF BALL > 0 GOTO LOOP1 ELSE GOTO LOOP2" +
+            "\r" +
+            "STOP 10" +
+            "\r" +
+            "PULL 1.0" +
+            "\r" +
+            "SHOOT" +
+            "\r" +
+            "LOOP2:" +
+            "\r" +
+            "STOP 1" +
+            "\r" +
+            "SHOOT" +
+            "\r" +
+            "STOP 10" +
+            "\r" +
+            "SHOOT" +
+            "\r";
+
+          $("#script_editor").val(test_script);
+
+          function getResultLoop() {
+            getResult();
+            console.log("執行getResult");
+
+            setTimeout(getResultLoop, 1000);
+          }
+
+          getResultLoop();
+
+          function sleep(ms) {
+            return new Promise(function (resolve) {
+              setTimeout(function () {
+                resolve();
+              }, ms);
+            });
+          }
+
+          //random pull
+          function myRandomNumber(min, max) {
+            return (
+              (Math.floor(Math.random() * (max * 10 - min * 10 + 1)) + min * 10) / 10
+            );
+          }
+
+          function parseCommandToken(
+            tokens,
+            index,
+            execute,
+            script_execution_counter,
+            labels
+          ) {
+            if (tokens !== null && tokens.length > index) {
+              if (tokens[index] === "insertcoin") {
+                //在tokens這個陣列中的索引位置
+                if (tokens.length > index + 1) coins = tokens[index + 1];
+                myLog(
+                  "-> LINE " +
+                  script_execution_counter +
+                  " Command insertcoin" +
+                  " " +
+                  coins
+                );
+                if (execute) {
+                  // insertCoin();
+                  console.log("執行insertCoin");
+                  itimer = 0;
+                }
+                return [true, 2, 2, 0];
+              }
+
+              if (tokens[index] === "start") {
+                myLog("-> LINE " + script_execution_counter + " Command start");
+                if (execute) {
+                  startGame();
+                  console.log("執行startGame");
+                  itimer = 0;
+                }
+                return [true, 1, 0, 0];
+              }
+
+              if (tokens[index] === "pull") {
+                if (tokens.length > index + 1) sec = tokens[index + 1];
+                myLog(
+                  "-> LINE " + script_execution_counter + " Command pull" + " " + sec
+                );
+                if (execute) {
+                  // gameActionPull(sec);
+                  console.log("執行gameActionPull(sec)");
+                  itimer = 0;
+                  return [true, 2, 0, sec];
+                }
+                return [true, 2, 0, 0];
+              }
+
+              if (tokens[index] === "randpull") {
+                if (tokens.length > index + 1) sec1 = tokens[index + 1];
+                if (tokens.length > index + 2) sec2 = tokens[index + 2];
+                myLog(
+                  "-> LINE " +
+                  script_execution_counter +
+                  " Command randpull" +
+                  " " +
+                  sec1 +
+                  " " +
+                  sec2
+                );
+                sec = myRandomNumber(sec1, sec2);
+                if (execute) {
+                  //gameActionPull(sec)
+                  console.log("執行random gameActionPull(sec)");
+                  itimer = 0;
+                  return [true, 3, 0, sec];
+                }
+                return [true, 3, 0, 0];
+              }
+
+              if (tokens[index] === "shoot") {
+                myLog("-> LINE " + script_execution_counter + " Command shoot");
+                if (execute) {
+                  //gameActionShoot();
+                  console.log("執行shoot");
+                  itimer = 0;
+                }
+                return [true, 1, 0, 0];
+              }
+
+              if (tokens[index] === "stop") {
+                if (tokens.length > index + 1) sec = tokens[index + 1];
+                myLog(
+                  "-> LINE " + script_execution_counter + " Command stop" + " " + sec
+                );
+                console.log("執行stop");
+                if (execute) return [true, 2, 0, sec];
+                else return [true, 2, 0, 0];
+              }
+
+              if (tokens[index] === "randstop") {
+                if (tokens.length > index + 2) {
+                  sec1 = tokens[index + 1];
+                  sec2 = tokens[index + 2];
+                }
+                myLog(
+                  "-> LINE " +
+                  script_execution_counter +
+                  " Command randstop" +
+                  " " +
+                  sec1 +
+                  " " +
+                  sec2
+                );
+                if (execute) {
+                  sec = myRandomNumber(sec1, sec2);
+                  console.log("執行randstop");
+                  itimer = 0;
+                  return [true, , 3, 0, sec];
+                } else return [true, , 3, 0, 0];
+              }
+
+              if (tokens[index] === "goto") {
+                if (tokens.length > index + 1) label = tokens[index + 1];
+                myLog(
+                  "-> LINE " + script_execution_counter + " Command goto" + " " + label
+                );
+                new_script_execution_counter = 0;
+                console.log("執行goto");
+                if (execute) new_script_execution_counter = labels[label];
+                return [true, 2, new_script_execution_counter, 0];
+              }
+              //Loop
+            }
+            return [false, 0, 0, 0];
+          }
+
+          //parseConditionToken
+          function parseConditionToken(i, o, v, script_execution_counter) {
+            let value1 = 0;
+            let value2 = 0;
+            let operator = o;
+            result = false;
+            if (i.indexOf("hole") > -1) {
+              myLog(
+                "-> LINE " +
+                script_execution_counter +
+                " Condition " +
+                i +
+                " " +
+                o +
+                " " +
+                v
+              );
+              value1 = i.replace("hole_", "");
+              detail = result_data.data.detail;
+              detail_array = detail.split(";");
+              found = false;
+              for (item in detail_array) {
+                if (value1 === detail_array[item]) {
+                  found = true;
+                  break;
+                }
+              }
+              if (v === "on")
+                if (found) result = true;
+                else if (v === "off") if (!found) result = true;
+              operator = "<>";
+            } else if (i === "ball") {
+              myLog(
+                "-> LINE " +
+                script_execution_counter +
+                " Condition " +
+                i +
+                " " +
+                o +
+                " " +
+                v
+              );
+              value1 = 5 - result_data.data.ball;
+              value2 = parseInt(v);
+              if (value1 < 0) result = false;
+              myLog("v1 = " + value1 + " v2 = " + value2);
+            } else if (i === "wball") {
+              myLog(
+                "-> LINE " +
+                script_execution_counter +
+                " Condition " +
+                i +
+                " " +
+                o +
+                " " +
+                v
+              );
+              value1 = 5 - result_data.data.ball_line;
+              value2 = parseInt(v);
+              if (value < 0) result = false;
+              myLog("v1 = " + value1 + " v2 = " + value2);
+            } else if (i === "score") {
+              myLog(
+                "-> LINE " +
+                script_execution_counter +
+                " Condition " +
+                i +
+                " " +
+                o +
+                " " +
+                v
+              );
+              value1 = result_data.data.score;
+              value2 = parseInt(v);
+            } else if (i === "itimer") {
+              myLog(
+                "-> LINE " +
+                script_execution_counter +
+                " Condition " +
+                i +
+                " " +
+                o +
+                " " +
+                v
+              );
+              value1 = itimer;
+              value2 = parseInt(v);
+            }
+            switch (operator) {
+              case "==":
+                if (value1 === value2) result = true;
+                else result = false;
+                break;
+              case "!=":
+                if (value1 !== value2) result = true;
+                else result = false;
+                break;
+              case ">":
+                if (value1 > value2) result = true;
+                else result = false;
+                break;
+              case ">=":
+                if (value1 >= value2) result = true;
+                else result = false;
+                break;
+              case "<":
+                if (value1 < value2) result = true;
+                else result = false;
+                break;
+              case "<=":
+                if (value1 <= value2) result = true;
+                else result = false;
+                break;
+            }
+            myLog("Condition Result = " + result);
+            return result;
+          }
+
+          //action_script_runner_init
+          function action_script_runner_init(script_line) {
+            lines = script_line.split(/\r?\n/); //將腳本變成分段 & 陣列形式
+            console.log(lines); //腳本全部
+            script_timer = 0;
+            script_execution_counter = 0;
+            script_line_count = lines.length; //line.length lines陣列的長度,有幾個步驟長度就幾個
+            labels = {};
+            console.log("Script Start , Line Count = " + script_line_count); //行數script_line_count=18
+
+            for (let i = 0; i < script_line_count; i++) {
+              line = lines[i]; //把腳本每個步驟都-分開顯示出來
+              line = line.trim(); //將腳本英文與數字之間加上空格-以利區別
+              line = line.toLowerCase(); //將腳本變成英文小寫
+              console.log(`line${line}`);
+              if (line.indexOf(":") > -1) {
+                console.log("只有loop會有冒號");
+                label = line.substring(0, line.indexOf(":")); //把loop1 & loop2後面的:去掉
+                labels[label] = i; //i是一個數字 2 或13...
+                console.log(`label${label}`);
+                console.log("Label " + i + " " + label);
+              }
+            }
+            console.log("Labels:" + JSON.stringify(labels)); //將labels變成JSON格式  {'loop1':3,'loop2':12}
+            itimer = 0; //計時器重置，開始計時
+          }
+
+          //action script runner run
+          function action_script_runner_run(script_execution_counter_running) {
+            if (script_execution_counter_running < script_line_count) {
+              script_timeout = SCRIPT_DEFAULT_TIMEOUT;
+
+              line = lines[script_execution_counter_running];
+
+              line = line.trim();
+              line = line.toLowerCase();
+              script_execution_counter_goto = 0;
+              if (line != "") {
+                tokens = line.split(" ");
+                condition_result = true;
+                condition_and = false;
+                condition_or = false;
+                condition_else = false;
+                for (let i = 0; i < tokens.length; i++) {
+                  console.log("" + tokens[i] + " ");
+                  if (tokens[i].indexOf("#") == 0) {
+                    myLog("-> LINE " + script_execution_counter_running + " Comment");
+
+                    break;
+                  }
+
+                  if (tokens[i].indexOf(":") > -1) {
+                    myLog("-> LINE " + script_execution_counter_running + " Label");
+                    break;
+                  }
+
+                  result = parseCommandToken(
+                    tokens,
+                    i,
+                    condition_result || condition_else,
+                    script_execution_counter_running,
+                    labels
+                  );
+
+                  if (result[0]) {
+                    i = i + result[1];
+                    if (result[2] != 0) script_execution_counter_goto = result[2];
+                    if (condition_result || condition_else) {
+                      script_timeout = result[3];
+                      break;
+                    }
+                  }
+
+                  if (tokens[i] === "if") {
+                    condition_result = false;
+                    myLog("-> LINE " + script_execution_counter_running + " IF ");
+                    if (tokens.length > 4) {
+                      condition_result = parseConditionToken(
+                        tokens[i + 1],
+                        tokens[i + 2],
+                        tokens[i + 3],
+                        script_execution_counter_running
+                      );
+                    }
+                    i = 3;
+                  }
+
+                  if (tokens[i] === "else") {
+                    condition_else = true;
+                    myLog("-> LINE " + script_execution_counter + " ELSE ");
+                  }
+
+                  if (tokens[i] === "&&") {
+                    myLog("-> LINE " + script_execution_counter_running + " && ");
+                    if (tokens.length > i + 3) {
+                      new_condition_result = parseConditionToken(
+                        tokens[i + 1],
+                        tokens[i + 2],
+                        tokens[i + 3],
+                        script_execution_counter_running
+                      );
+                      condition_result = condition_result && new_condition_result;
+                    }
+                    i += 3;
+                    condition_and = true;
+                  }
+
+                  if (tokens[i] === "||") {
+                    myLog("-> LINE " + script_execution_counter_running + " || ");
+                    if (tokens.length > i + 3) {
+                      condition_result ||= parseConditionToken(
+                        tokens[i + 1],
+                        tokens[i + 2],
+                        tokens[i + 3],
+                        script_execution_counter_running
+                      );
+                    }
+                    i += 3;
+                    condition_or = true;
+                  }
+
+                  // Only one chain allowed for '&&' or '||'
+                  if (condition_and && condition_or) break;
+                }
+              }
+
+              if (script_execution_counter_goto == 0) {
+                next_script_execution_counter_running =
+                  script_execution_counter_running + 1;
+              } else {
+                next_script_execution_counter_running = script_execution_counter_goto;
+              }
+              itimer = itimer + script_timeout;
+
+              //await sleep(script_timeout*1000);
+              return next_script_execution_counter_running;
+            }
+            myLog(">>>Script End");
+            return -1;
+          }
+
+          //button
+          $("#button_script_run").on("click", function (event) {
+            let current_script = $("#script_editor").val();
+            $("#output").val("");
+            myLog(">>> Start Script");
+            script_stop = false;
+            action_script_runner_init(current_script);
+            script_run_main(script_execution_counter);
+          });
+
+          $("#button_script_stop").on("click", function (event) {
+            script_stop = true;
+            myLog(">>> Script Stop");
+          });
+
+          $("#button_script_empty").on("click", function (event) {
+            $("#script_editor").val("");
+          });
+
+          //印出執行時間-myLog
+          function myLog(message) {
+            let date = moment(); //套件
+            let currentDate = date.format("YYYY-MM-DD HH:mm:ss");
+            m = "[" + currentDate + "]" + message;
+            console.log(m);
+            let current_log = $("#output").val();
+            current_log = current_log + m + "\r"; //?
+            $("#output").val(current_log); //改
+            // $("#output").scrollTop($("#output")[0].scrollHeight);
+          }
+
+          //async runrun
+          //執行 action_script_runner_run，然後等待一段時間，最後返回 action_script_runner_run 的結果
+          async function runrun(x) {
+            y = action_script_runner_run(x);
+            await sleep(script_timeout * 1000);
+            return y;
+          }
+
+          //async: script_run_main
+          async function script_run_main(n) {
+            x = n;
+            //進入一個 while 迴圈，條件是 x 小於 script_line_count，即還有腳本行要執行
+            while (x < script_line_count) {
+              await runrun(x); //使用 await 來等待非同步函式 runrun 的執行結果。
+              x = y; //將 x 設置為 runrun 函式的返回值 y。這是為了跟蹤腳本的執行位置
+              //檢查 script_stop 變數，如果為真（即需要停止腳本），則將 script_execution_counter 設置為當前的行數 x，並跳出迴圈
+              if (script_stop) {
+                script_execution_counter = x; //當腳本與行數相等，停止執行腳本
+                break;
+              }
+            }
+            if (x == script_line_count) myLog("<<< Script End >>>");
+            //如果 x 等於 script_line_count，即執行到了腳本的最後一行，則在結束時輸出一條訊息
+          }
+
+          //api
+          function insertCoin() {
+            $.ajax({
+              url: BIZLUTION_RESTFUL_API_URL + "insert_coin",
+              async: true,
+              error: function (result) {
+                console.log("insertCoin失敗");
+              },
+              success: function (result) {
+                console.log("insertCoin成功");
+              }
+            });
+          }
+
+          function startGame() {
+            $.ajax({
+              url: BIZLUTION_RESTFUL_API_URL + "start_game",
+              async: false,
+              error: function (result) { },
+              success: function (result) { }
+            });
+          }
+
+          function gameActionPull() {
+            let sec = $("#sec").val();
+            $.ajax({
+              url: BIZLUTION_RESTFUL_API_URL + "game_action_pull?sec=" + sec,
+              async: false,
+              error: function (result) { },
+              success: function (result) { }
+            });
+          }
+
+          function gameActionShoot() {
+            $.ajax({
+              url: BIZLUTION_RESTFUL_API_URL + "game_action_shoot",
+              async: false,
+              error: function (result) { },
+              success: function (result) { }
+            });
+          }
+        });
+
+      </script>
+</body>
+
 </html>
